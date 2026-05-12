@@ -105,14 +105,14 @@ header p{font-size:13px;color:#64748b;margin-top:6px}
 <div class="card">
   <div class="lbl">Source file</div>
   <input type="file" id="fi" accept=".pdf,.png,.jpg,.jpeg,.tif,.tiff" style="display:none">
-  <div class="dz" id="dz">
+  <label for="fi" class="dz" id="dz">
     <svg viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
       <path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242M12 12v9m-4-4 4 4 4-4"/>
     </svg>
     <div class="dz-main"><b>Click to upload</b> or drag &amp; drop</div>
     <div class="dz-sub">PDF · PNG · JPG · TIFF &nbsp;—&nbsp; first page used for multi-page PDFs</div>
     <div class="dz-file" id="fn"></div>
-  </div>
+  </label>
 </div>
 
 <!-- 2 · Dimensions -->
@@ -186,7 +186,6 @@ let pvTimer = null;
 const dz = document.getElementById('dz');
 const fi = document.getElementById('fi');
 
-dz.addEventListener('click', () => fi.click());
 dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('over') });
 dz.addEventListener('dragleave', () => dz.classList.remove('over'));
 dz.addEventListener('drop', e => {
