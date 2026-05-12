@@ -98,6 +98,22 @@ header p{font-size:13px;color:#64748b;margin-top:6px}
 .tile-info b{color:#e2e8f0}
 .tile-warn{color:#f59e0b}
 
+/* selection controls */
+.sel-bar{
+  display:none;justify-content:space-between;align-items:center;
+  margin-top:12px;flex-wrap:wrap;gap:8px;
+}
+.sel-bar.show{display:flex}
+.sel-hint{font-size:12px;color:#64748b}
+.sel-hint b{color:#e2e8f0}
+.sel-btns{display:flex;gap:6px}
+.sel-btns button{
+  padding:5px 12px;font-size:12px;border-radius:6px;border:1px solid #1e2535;
+  background:#0d1117;color:#94a3b8;cursor:pointer;transition:background .14s,color .14s;
+}
+.sel-btns button:hover{background:#1e2535;color:#e2e8f0}
+#pvc{cursor:crosshair}
+
 /* export */
 .btn-row{display:flex;gap:10px}
 .btn{
@@ -196,6 +212,14 @@ header p{font-size:13px;color:#64748b;margin-top:6px}
     <canvas id="pvc"></canvas>
   </div>
   <div class="tile-info" id="tinfo"></div>
+  <div class="sel-bar" id="selbar">
+    <span class="sel-hint">Click tiles to select · <b id="selcount">0</b> selected</span>
+    <div class="sel-btns">
+      <button id="bselall" type="button">Select all</button>
+      <button id="bselnone" type="button">Clear</button>
+      <button id="bselinvert" type="button">Invert</button>
+    </div>
+  </div>
 </div>
 
 <!-- 4 · Export -->
@@ -235,10 +259,12 @@ const PAPER = {
 let srcCanvas  = null;
 let unit       = 'cm';
 let orient     = 'portrait';
-let paperKey   = 'A4';       // key into PAPER or 'custom'
-let customW    = 210;        // mm, used when paperKey === 'custom'
+let paperKey   = 'A4';
+let customW    = 210;
 let customH    = 297;
 let pvTimer    = null;
+let selection  = null;   // Set of 'r,c' keys — null means "all selected"
+let lastGrid   = null;   // cached grid for click hit-testing
 
 function paperShort() { return paperKey === 'custom' ? Math.min(customW, customH) : PAPER[paperKey][0] }
 function paperLong()  { return paperKey === 'custom' ? Math.max(customW, customH) : PAPER[paperKey][1] }
@@ -254,17 +280,79 @@ function jsPDFFormat() {
 }
 
 // ── DOM refs ───────────────────────────────────────────────────────────────
-const fi      = document.getElementById('fi');
-const dzwrap  = document.getElementById('dzwrap');
-const fnEl    = document.getElementById('fn');
-const pvempEl = document.getElementById('pvemp');
-const pvcEl   = document.getElementById('pvc');
-const tinfoEl = document.getElementById('tinfo');
-const bpdf    = document.getElementById('bpdf');
-const bzip    = document.getElementById('bzip');
-const progEl  = document.getElementById('prog');
-const pfill   = document.getElementById('pfill');
-const ptxt    = document.getElementById('ptxt');
+const fi        = document.getElementById('fi');
+const dzwrap    = document.getElementById('dzwrap');
+const fnEl      = document.getElementById('fn');
+const pvempEl   = document.getElementById('pvemp');
+const pvcEl     = document.getElementById('pvc');
+const tinfoEl   = document.getElementById('tinfo');
+const selbarEl  = document.getElementById('selbar');
+const selcountEl= document.getElementById('selcount');
+const bpdf      = document.getElementById('bpdf');
+const bzip      = document.getElementById('bzip');
+const progEl    = document.getElementById('prog');
+const pfill     = document.getElementById('pfill');
+const ptxt      = document.getElementById('ptxt');
+
+// selection button wiring
+document.getElementById('bselall').addEventListener('click', () => {
+  if (!lastGrid) return;
+  selection = null;  // null = all
+  refreshPreview();
+});
+document.getElementById('bselnone').addEventListener('click', () => {
+  selection = new Set();
+  refreshPreview();
+});
+document.getElementById('bselinvert').addEventListener('click', () => {
+  if (!lastGrid) return;
+  const g = lastGrid;
+  const all = allKeys(g);
+  if (selection === null) {
+    selection = new Set(); // was all → now none
+  } else {
+    const inv = new Set();
+    for (const k of all) { if (!selection.has(k)) inv.add(k); }
+    selection = inv;
+  }
+  refreshPreview();
+});
+
+// canvas click → toggle tile
+pvcEl.addEventListener('click', function(e) {
+  if (!lastGrid) return;
+  const g   = lastGrid;
+  const rect = pvcEl.getBoundingClientRect();
+  const mx  = e.clientX - rect.left;
+  const my  = e.clientY - rect.top;
+  const pw  = pvcEl.width, ph = pvcEl.height;
+  const stpX = g.sx / g.w * pw;
+  const stpY = g.sy / g.h * ph;
+  const col = Math.floor(mx / stpX);
+  const row = Math.floor(my / stpY);
+  if (col < 0 || col >= g.cols || row < 0 || row >= g.rows) return;
+  const key = row + ',' + col;
+  if (selection === null) {
+    // start from all-selected, deselect this one
+    selection = new Set(allKeys(g));
+    selection.delete(key);
+  } else {
+    if (selection.has(key)) selection.delete(key);
+    else selection.add(key);
+  }
+  refreshPreview();
+});
+
+function allKeys(g) {
+  const keys = [];
+  for (let r = 0; r < g.rows; r++)
+    for (let c = 0; c < g.cols; c++) keys.push(r + ',' + c);
+  return keys;
+}
+
+function isSelected(r, c) {
+  return selection === null || selection.has(r + ',' + c);
+}
 
 // ── file picker button ─────────────────────────────────────────────────────
 document.getElementById('pickBtn').addEventListener('click', function(e) {
@@ -429,6 +517,14 @@ function refreshPreview() {
   if (!srcCanvas) return;
   const g = calcGrid();
   if (!g) return;
+  lastGrid = g;
+
+  // reset selection to "all" when grid shape changes
+  if (selection !== null) {
+    const validKeys = new Set(allKeys(g));
+    const pruned = new Set([...selection].filter(k => validKeys.has(k)));
+    selection = pruned;
+  }
 
   const MAX = 560;
   const ar  = srcCanvas.width / srcCanvas.height;
@@ -440,42 +536,56 @@ function refreshPreview() {
   const ctx = pvcEl.getContext('2d');
   ctx.drawImage(srcCanvas, 0, 0, pw, ph);
 
-  const stpX = g.sx     / g.w * pw;
-  const stpY = g.sy     / g.h * ph;
-  const tpw  = g.tilew  / g.w * pw;
-  const tph  = g.tileh  / g.h * ph;
+  const stpX = g.sx    / g.w * pw;
+  const stpY = g.sy    / g.h * ph;
+  const tpw  = g.tilew / g.w * pw;
+  const tph  = g.tileh / g.h * ph;
   const fs   = Math.max(7, Math.min(13, Math.floor(Math.min(stpX, stpY) / 5)));
 
   ctx.font         = `bold ${fs}px -apple-system,sans-serif`;
   ctx.textBaseline = 'top';
 
+  let selCount = 0;
   for (let r = 0; r < g.rows; r++) {
     for (let c = 0; c < g.cols; c++) {
-      const x  = c * stpX, y = r * stpY;
-      const bw = Math.min(tpw, pw - x), bh = Math.min(tph, ph - y);
-      ctx.fillStyle   = 'rgba(59,130,246,.1)';
+      const x   = c * stpX, y = r * stpY;
+      const bw  = Math.min(tpw, pw - x), bh = Math.min(tph, ph - y);
+      const sel = isSelected(r, c);
+      if (sel) selCount++;
+
+      // dim unselected tiles
+      if (!sel) {
+        ctx.fillStyle = 'rgba(0,0,0,.55)';
+        ctx.fillRect(x, y, bw, bh);
+      }
+
+      ctx.fillStyle   = sel ? 'rgba(59,130,246,.15)' : 'rgba(0,0,0,0)';
       ctx.fillRect(x, y, bw, bh);
-      ctx.strokeStyle = 'rgba(59,130,246,.75)';
-      ctx.lineWidth   = 1;
+      ctx.strokeStyle = sel ? 'rgba(59,130,246,.9)' : 'rgba(255,255,255,.15)';
+      ctx.lineWidth   = sel ? 1.5 : 1;
       ctx.strokeRect(x + .5, y + .5, bw - 1, bh - 1);
-      ctx.fillStyle   = 'rgba(59,130,246,.9)';
+
+      // label
+      ctx.fillStyle = sel ? 'rgba(59,130,246,.95)' : 'rgba(255,255,255,.3)';
       ctx.fillText(tileLabel(r, c), x + 3, y + 3);
     }
   }
 
   pvempEl.style.display = 'none';
   pvcEl.style.display   = 'block';
+  selbarEl.classList.add('show');
+  selcountEl.textContent = selCount;
 
-  const n    = g.cols * g.rows;
-  const warn = n > 200;
+  const total = g.cols * g.rows;
+  const warn  = selCount > 200;
   tinfoEl.innerHTML =
-    `<b class="${warn ? 'tile-warn' : ''}">${n} tile${n !== 1 ? 's' : ''}</b>`
+    `<b class="${warn ? 'tile-warn' : ''}">${total} tile${total !== 1 ? 's' : ''}</b>`
     + ` &nbsp;—&nbsp; ${g.cols} col${g.cols !== 1 ? 's' : ''} × ${g.rows} row${g.rows !== 1 ? 's' : ''}`
     + ` &nbsp;·&nbsp; ${paperKey === 'custom' ? customW+'×'+customH+'mm' : paperKey.toUpperCase()} ${orient}`
     + (warn ? ` <span class="tile-warn">· large export, may take a while</span>` : '');
 
-  bpdf.disabled = false;
-  bzip.disabled = false;
+  bpdf.disabled = selCount === 0;
+  bzip.disabled = selCount === 0;
 }
 
 function tileLabel(row, col) {
@@ -527,7 +637,7 @@ async function doExport(mode) {
   const g = calcGrid();
   if (!g) return;
 
-  const total = g.rows * g.cols;
+  const total = selection === null ? g.rows * g.cols : selection.size;
   bpdf.disabled = true;
   bzip.disabled = true;
   progEl.classList.add('show');
@@ -537,20 +647,26 @@ async function doExport(mode) {
   let n = 0;
 
   if (mode === 'pdf') {
-    const doc = new jsPDF({ unit: 'mm', format: jsPDFFormat(), orientation: orient });
+    let doc = null;
     for (let r = 0; r < g.rows; r++) {
       for (let c = 0; c < g.cols; c++) {
-        if (n > 0) doc.addPage();
+        if (!isSelected(r, c)) continue;
+        if (!doc) {
+          doc = new jsPDF({ unit: 'mm', format: jsPDFFormat(), orientation: orient });
+        } else {
+          doc.addPage();
+        }
         doc.addImage(renderTile(c, r, g).toDataURL('image/jpeg', .92), 'JPEG', 0, 0, g.tilew, g.tileh);
         updateProgress(++n, total);
         await tick();
       }
     }
-    doc.save('poster-tiles.pdf');
+    if (doc) doc.save('poster-tiles.pdf');
   } else {
     const zip = new JSZip();
     for (let r = 0; r < g.rows; r++) {
       for (let c = 0; c < g.cols; c++) {
+        if (!isSelected(r, c)) continue;
         const lbl = tileLabel(r, c);
         const doc = new jsPDF({ unit: 'mm', format: jsPDFFormat(), orientation: orient });
         doc.addImage(renderTile(c, r, g).toDataURL('image/jpeg', .92), 'JPEG', 0, 0, g.tilew, g.tileh);
