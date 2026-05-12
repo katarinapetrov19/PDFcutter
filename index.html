@@ -7,6 +7,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/utif@3.1.0/UTIF.js"></script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 body{
@@ -103,13 +104,13 @@ header p{font-size:13px;color:#64748b;margin-top:6px}
 <!-- 1 · Source -->
 <div class="card">
   <div class="lbl">Source file</div>
-  <input type="file" id="fi" accept=".pdf,.png,.jpg,.jpeg" style="display:none">
+  <input type="file" id="fi" accept=".pdf,.png,.jpg,.jpeg,.tif,.tiff" style="display:none">
   <div class="dz" id="dz">
     <svg viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
       <path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242M12 12v9m-4-4 4 4 4-4"/>
     </svg>
     <div class="dz-main"><b>Click to upload</b> or drag &amp; drop</div>
-    <div class="dz-sub">PDF · PNG · JPG &nbsp;—&nbsp; first page used for multi-page PDFs</div>
+    <div class="dz-sub">PDF · PNG · JPG · TIFF &nbsp;—&nbsp; first page used for multi-page PDFs</div>
     <div class="dz-file" id="fn"></div>
   </div>
 </div>
@@ -196,8 +197,10 @@ fi.addEventListener('change', e => { if (e.target.files[0]) load(e.target.files[
 
 async function load(file) {
   document.getElementById('fn').textContent = file.name;
-  const isPDF = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
-  srcCanvas = isPDF ? await fromPDF(file) : await fromImage(file);
+  const name  = file.name.toLowerCase();
+  const isPDF  = file.type === 'application/pdf' || name.endsWith('.pdf');
+  const isTIFF = name.endsWith('.tif') || name.endsWith('.tiff');
+  srcCanvas = isPDF ? await fromPDF(file) : isTIFF ? await fromTIFF(file) : await fromImage(file);
   drawPreview();
 }
 
@@ -215,6 +218,26 @@ async function fromImage(file) {
     };
     img.src = URL.createObjectURL(file);
   });
+}
+
+async function fromTIFF(file) {
+  const buf  = await file.arrayBuffer();
+  const ifds = UTIF.decode(buf);
+  UTIF.decodeImage(buf, ifds[0]);
+  const ifd  = ifds[0];
+  let w = ifd.width, h = ifd.height;
+  const rgba = UTIF.toRGBA8(ifd);
+  const s  = Math.min(1, MAXSRC / Math.max(w, h));
+  const dw = Math.round(w * s), dh = Math.round(h * s);
+  const c  = doc2canvas(dw, dh);
+  const ctx = c.getContext('2d');
+  // draw full-res into a temp canvas then scale down
+  const tmp = doc2canvas(w, h);
+  const id  = tmp.getContext('2d').createImageData(w, h);
+  id.data.set(rgba);
+  tmp.getContext('2d').putImageData(id, 0, 0);
+  ctx.drawImage(tmp, 0, 0, dw, dh);
+  return c;
 }
 
 async function fromPDF(file) {
