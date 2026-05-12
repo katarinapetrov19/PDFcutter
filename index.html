@@ -109,7 +109,7 @@ header p{font-size:13px;color:#64748b;margin-top:6px}
     <svg viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
       <path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242M12 12v9m-4-4 4 4 4-4"/>
     </svg>
-    <div class="dz-main"><button type="button" onclick="event.stopPropagation();document.getElementById('fi').click()" style="background:none;border:none;padding:0;color:inherit;font:inherit;cursor:pointer;text-decoration:underline;text-underline-offset:2px"><b>Click to upload</b></button> or drag &amp; drop</div>
+    <div class="dz-main"><b>Click to upload</b> or drag &amp; drop</div>
     <div class="dz-sub">PDF · PNG · JPG · TIFF &nbsp;—&nbsp; first page used for multi-page PDFs</div>
     <div class="dz-file" id="fn"></div>
   </div>
@@ -186,8 +186,7 @@ let pvTimer = null;
 const dz = document.getElementById('dz');
 const fi = document.getElementById('fi');
 
-// only open picker when clicking the dz background itself, not bubbled children
-dz.addEventListener('click', e => { if (e.target === dz) fi.click() });
+dz.addEventListener('click', () => fi.click());
 dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('over') });
 dz.addEventListener('dragleave', () => dz.classList.remove('over'));
 dz.addEventListener('drop', e => {
@@ -387,8 +386,8 @@ function renderTile(col, row, g) {
   const fs = 20, pad = 8;
   ctx.font = `bold ${fs}px -apple-system,Helvetica,sans-serif`;
   ctx.textBaseline = 'top';
-  const tw = ctx.measureText(lbl).width;
-  const bw = tw + pad * 2, bh = fs + pad * 2 + 2;
+  const lblW = ctx.measureText(lbl).width;
+  const bw = lblW + pad * 2, bh = fs + pad * 2 + 2;
 
   ctx.fillStyle = 'rgba(0,0,0,.42)';
   ctx.beginPath();
