@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Poster Tile Printer</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  background:#0d1117;color:#e2e8f0;min-height:100vh;
+  padding:48px 16px 80px;display:flex;flex-direction:column;align-items:center;
+}
+header{text-align:center;margin-bottom:36px}
+header h1{font-size:22px;font-weight:600;letter-spacing:-.02em}
+header p{font-size:13px;color:#64748b;margin-top:6px}
+
+.card{
+  width:100%;max-width:620px;background:#161b27;
+  border:1px solid #1e2535;border-radius:14px;padding:24px;margin-bottom:14px;
+}
+.lbl{
+  font-size:11px;font-weight:600;text-transform:uppercase;
+  letter-spacing:.08em;color:#3d4f6b;margin-bottom:14px;
+}
+
+/* drop zone */
+.dz{
+  border:2px dashed #1e2535;border-radius:10px;padding:36px 20px;
+  text-align:center;cursor:pointer;transition:border-color .18s,background .18s;
+}
+.dz:hover,.dz.over{border-color:#3b82f6;background:rgba(59,130,246,.06)}
+.dz svg{width:28px;height:28px;stroke:#3d4f6b;margin-bottom:10px}
+.dz-main{font-size:14px;color:#94a3b8}
+.dz-main b{color:#e2e8f0}
+.dz-sub{font-size:12px;color:#3d4f6b;margin-top:4px}
+.dz-file{font-size:13px;color:#3b82f6;margin-top:8px;font-weight:500}
+
+/* settings */
+.fields{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;align-items:end}
+.field{display:flex;flex-direction:column;gap:5px}
+.field label{font-size:12px;color:#64748b}
+.field input{
+  background:#0d1117;border:1px solid #1e2535;border-radius:7px;
+  color:#e2e8f0;font-size:14px;padding:9px 10px;outline:none;
+  transition:border-color .14s;width:100%;
+}
+.field input:focus{border-color:#3b82f6}
+.unit-row{display:flex;gap:10px;align-items:center;margin-top:14px}
+.unit-row span{font-size:12px;color:#64748b;white-space:nowrap}
+.segs{
+  display:flex;background:#0d1117;
+  border:1px solid #1e2535;border-radius:7px;overflow:hidden;
+}
+.segs button{
+  padding:7px 16px;background:none;border:none;
+  color:#64748b;font-size:13px;cursor:pointer;
+  transition:background .14s,color .14s;
+}
+.segs button.on{background:#3b82f6;color:#fff}
+
+/* preview */
+.pv-box{
+  background:#0d1117;border-radius:10px;padding:16px;min-height:180px;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+}
+.pv-empty{font-size:13px;color:#3d4f6b;text-align:center}
+#pvc{display:none;max-width:100%;border-radius:4px}
+.tile-info{font-size:12px;color:#64748b;margin-top:10px;text-align:center}
+.tile-info b{color:#e2e8f0}
+.tile-warn{color:#f59e0b}
+
+/* export */
+.btn-row{display:flex;gap:10px}
+.btn{
+  flex:1;padding:11px 16px;border-radius:8px;font-size:14px;
+  font-weight:500;cursor:pointer;border:none;
+  transition:opacity .14s,transform .1s;text-align:center;
+}
+.btn:disabled{opacity:.35;cursor:not-allowed}
+.btn:not(:disabled):hover{opacity:.82}
+.btn:not(:disabled):active{transform:scale(.98)}
+.btn-blue{background:#3b82f6;color:#fff}
+.btn-ghost{background:#161b27;border:1px solid #1e2535;color:#e2e8f0}
+
+.prog{display:none;flex-direction:column;gap:7px;margin-top:14px}
+.prog.show{display:flex}
+.prog-track{background:#0d1117;border-radius:4px;height:5px;overflow:hidden}
+.prog-fill{height:100%;background:#3b82f6;border-radius:4px;width:0%;transition:width .15s}
+.prog-text{font-size:12px;color:#4b5875;text-align:center}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Poster Tile Printer</h1>
+  <p>Tile a large PDF or image into A4 sheets for large-format poster printing</p>
+</header>
+
+<!-- 1 · Source -->
+<div class="card">
+  <div class="lbl">Source file</div>
+  <div class="dz" id="dz">
+    <input type="file" id="fi" accept=".pdf,.png,.jpg,.jpeg" style="display:none">
+    <svg viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242M12 12v9m-4-4 4 4 4-4"/>
+    </svg>
+    <div class="dz-main"><b>Click to upload</b> or drag &amp; drop</div>
+    <div class="dz-sub">PDF · PNG · JPG &nbsp;—&nbsp; first page used for multi-page PDFs</div>
+    <div class="dz-file" id="fn"></div>
+  </div>
+</div>
+
+<!-- 2 · Dimensions -->
+<div class="card">
+  <div class="lbl">Print size</div>
+  <div class="fields">
+    <div class="field"><label>Width</label><input type="number" id="pw" value="200" min="1" step="1" oninput="schedPrev()"></div>
+    <div class="field"><label>Height</label><input type="number" id="ph" value="200" min="1" step="1" oninput="schedPrev()"></div>
+    <div class="field"><label>Overlap (mm)</label><input type="number" id="ov" value="10" min="0" max="50" step="1" oninput="schedPrev()"></div>
+  </div>
+  <div class="unit-row">
+    <span>Unit</span>
+    <div class="segs">
+      <button class="on" id="ucm" onclick="setUnit('cm')">cm</button>
+      <button id="um" onclick="setUnit('m')">m</button>
+    </div>
+  </div>
+</div>
+
+<!-- 3 · Preview -->
+<div class="card">
+  <div class="lbl">Tiling preview</div>
+  <div class="pv-box">
+    <div class="pv-empty" id="pvemp">Upload a file and set dimensions to preview the tile grid</div>
+    <canvas id="pvc"></canvas>
+  </div>
+  <div class="tile-info" id="tinfo"></div>
+</div>
+
+<!-- 4 · Export -->
+<div class="card">
+  <div class="lbl">Export</div>
+  <div class="btn-row">
+    <button class="btn btn-blue"  id="bpdf" disabled onclick="doExport('pdf')">Multi-page PDF</button>
+    <button class="btn btn-ghost" id="bzip" disabled onclick="doExport('zip')">ZIP of tiles</button>
+  </div>
+  <div class="prog" id="prog">
+    <div class="prog-track"><div class="prog-fill" id="pfill"></div></div>
+    <div class="prog-text" id="ptxt"></div>
+  </div>
+</div>
+
+<script>
+// ── constants ─────────────────────────────────────────────────────────────
+const A4W = 210, A4H = 297;           // mm
+const RDPI = 150;                     // render DPI for tile output
+const PXmm = RDPI / 25.4;            // px per mm
+const TW   = Math.round(A4W * PXmm); // ≈1240 px
+const TH   = Math.round(A4H * PXmm); // ≈1754 px
+const MAXSRC = 7000;                  // max source canvas side in px
+
+pdfjsLib.GlobalWorkerOptions.workerSrc =
+  'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+// ── state ─────────────────────────────────────────────────────────────────
+let srcCanvas = null;
+let unit = 'cm';
+let pvTimer = null;
+
+// ── upload ────────────────────────────────────────────────────────────────
+const dz = document.getElementById('dz');
+const fi = document.getElementById('fi');
+
+dz.addEventListener('click', () => fi.click());
+dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('over') });
+dz.addEventListener('dragleave', () => dz.classList.remove('over'));
+dz.addEventListener('drop', e => {
+  e.preventDefault(); dz.classList.remove('over');
+  if (e.dataTransfer.files[0]) load(e.dataTransfer.files[0]);
+});
+fi.addEventListener('change', e => { if (e.target.files[0]) load(e.target.files[0]) });
+
+async function load(file) {
+  document.getElementById('fn').textContent = file.name;
+  const isPDF = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+  srcCanvas = isPDF ? await fromPDF(file) : await fromImage(file);
+  drawPreview();
+}
+
+async function fromImage(file) {
+  return new Promise(res => {
+    const img = new Image();
+    img.onload = () => {
+      let w = img.naturalWidth, h = img.naturalHeight;
+      const s = Math.min(1, MAXSRC / Math.max(w, h));
+      w = Math.round(w * s); h = Math.round(h * s);
+      const c = doc2canvas(w, h);
+      c.getContext('2d').drawImage(img, 0, 0, w, h);
+      URL.revokeObjectURL(img.src);
+      res(c);
+    };
+    img.src = URL.createObjectURL(file);
+  });
+}
+
+async function fromPDF(file) {
+  const buf  = await file.arrayBuffer();
+  const pdf  = await pdfjsLib.getDocument({ data: buf }).promise;
+  const page = await pdf.getPage(1);
+  const vp0  = page.getViewport({ scale: 1 });
+  const sc   = Math.min(3, MAXSRC / Math.max(vp0.width, vp0.height));
+  const vp   = page.getViewport({ scale: sc });
+  const c    = doc2canvas(Math.round(vp.width), Math.round(vp.height));
+  const ctx  = c.getContext('2d');
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(0, 0, c.width, c.height);
+  await page.render({ canvasContext: ctx, viewport: vp }).promise;
+  return c;
+}
+
+function doc2canvas(w, h) {
+  const c = document.createElement('canvas');
+  c.width = w; c.height = h;
+  return c;
+}
+
+// ── grid calc ─────────────────────────────────────────────────────────────
+const getW   = () => +document.getElementById('pw').value * (unit === 'm' ? 1000 : 10);
+const getH   = () => +document.getElementById('ph').value * (unit === 'm' ? 1000 : 10);
+const getOvl = () => +document.getElementById('ov').value;
+
+function calcGrid() {
+  const w = getW(), h = getH(), o = getOvl();
+  if (!w || !h) return null;
+  const sx = A4W - o, sy = A4H - o;
+  if (sx <= 0 || sy <= 0) return null;
+  return { cols: Math.ceil(w / sx), rows: Math.ceil(h / sy), sx, sy, w, h };
+}
+
+function setUnit(u) {
+  unit = u;
+  document.getElementById('ucm').classList.toggle('on', u === 'cm');
+  document.getElementById('um').classList.toggle('on', u === 'm');
+  schedPrev();
+}
+
+// ── preview ───────────────────────────────────────────────────────────────
+function schedPrev() { clearTimeout(pvTimer); pvTimer = setTimeout(drawPreview, 220) }
+
+function drawPreview() {
+  if (!srcCanvas) return;
+  const g = calcGrid();
+  if (!g) return;
+
+  const cv  = document.getElementById('pvc');
+  const MAX = 560;
+  const ar  = srcCanvas.width / srcCanvas.height;
+  let pw, ph;
+  if (ar >= 1) { pw = MAX; ph = Math.round(MAX / ar) }
+  else         { ph = MAX; pw = Math.round(MAX * ar) }
+  cv.width = pw; cv.height = ph;
+
+  const ctx = cv.getContext('2d');
+  ctx.drawImage(srcCanvas, 0, 0, pw, ph);
+
+  // tile grid overlay
+  const stpX = g.sx / g.w * pw;
+  const stpY = g.sy / g.h * ph;
+  const tpw  = A4W / g.w * pw;
+  const tph  = A4H / g.h * ph;
+  const fs   = Math.max(7, Math.min(13, Math.floor(Math.min(stpX, stpY) / 5)));
+
+  ctx.font = `bold ${fs}px -apple-system,sans-serif`;
+  ctx.textBaseline = 'top';
+
+  for (let r = 0; r < g.rows; r++) {
+    for (let c = 0; c < g.cols; c++) {
+      const x = c * stpX, y = r * stpY;
+      const bw = Math.min(tpw, pw - x), bh = Math.min(tph, ph - y);
+
+      ctx.fillStyle = 'rgba(59,130,246,.1)';
+      ctx.fillRect(x, y, bw, bh);
+      ctx.strokeStyle = 'rgba(59,130,246,.75)';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(x + .5, y + .5, bw - 1, bh - 1);
+
+      ctx.fillStyle = 'rgba(59,130,246,.9)';
+      ctx.fillText(tileLabel(r, c), x + 3, y + 3);
+    }
+  }
+
+  document.getElementById('pvemp').style.display = 'none';
+  cv.style.display = 'block';
+
+  const n = g.cols * g.rows;
+  const warn = n > 200;
+  document.getElementById('tinfo').innerHTML =
+    `<b class="${warn ? 'tile-warn' : ''}">${n} tile${n !== 1 ? 's' : ''}</b>`
+    + ` &nbsp;—&nbsp; ${g.cols} col${g.cols !== 1 ? 's' : ''} × ${g.rows} row${g.rows !== 1 ? 's' : ''}`
+    + ` &nbsp;·&nbsp; A4 portrait`
+    + (warn ? ` &nbsp;<span class="tile-warn">· large export, may take a while</span>` : '');
+
+  document.getElementById('bpdf').disabled = false;
+  document.getElementById('bzip').disabled = false;
+}
+
+// ── label helper ──────────────────────────────────────────────────────────
+function tileLabel(row, col) {
+  const r = row < 26 ? String.fromCharCode(65 + row) : `R${row + 1}`;
+  return `${r}${col + 1}`;
+}
+
+// ── render one tile canvas ─────────────────────────────────────────────────
+function renderTile(col, row, g) {
+  const c   = doc2canvas(TW, TH);
+  const ctx = c.getContext('2d');
+
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(0, 0, TW, TH);
+
+  // sample from source
+  const scaleX = srcCanvas.width  / g.w;
+  const scaleY = srcCanvas.height / g.h;
+  ctx.drawImage(
+    srcCanvas,
+    col * g.sx * scaleX,  row * g.sy * scaleY,
+    A4W * scaleX,         A4H * scaleY,
+    0, 0, TW, TH
+  );
+
+  // corner label badge
+  const lbl = tileLabel(row, col);
+  const fs = 20, pad = 8;
+  ctx.font = `bold ${fs}px -apple-system,Helvetica,sans-serif`;
+  ctx.textBaseline = 'top';
+  const tw = ctx.measureText(lbl).width;
+  const bw = tw + pad * 2, bh = fs + pad * 2 + 2;
+
+  ctx.fillStyle = 'rgba(0,0,0,.42)';
+  ctx.beginPath();
+  if (ctx.roundRect) {
+    ctx.roundRect(6, 6, bw, bh, 5);
+  } else {
+    ctx.rect(6, 6, bw, bh);
+  }
+  ctx.fill();
+
+  ctx.fillStyle = '#fff';
+  ctx.fillText(lbl, 6 + pad, 6 + pad);
+
+  return c;
+}
+
+// ── progress helpers ───────────────────────────────────────────────────────
+function setProgress(n, total) {
+  document.getElementById('pfill').style.width = Math.round(n / total * 100) + '%';
+  document.getElementById('ptxt').textContent  = `Processing tile ${n} of ${total}…`;
+}
+function showProg(v) { document.getElementById('prog').classList.toggle('show', v) }
+function lockBtns(v) {
+  document.getElementById('bpdf').disabled = v;
+  document.getElementById('bzip').disabled = v;
+}
+
+// ── export ────────────────────────────────────────────────────────────────
+async function doExport(mode) {
+  if (!srcCanvas) return;
+  const g = calcGrid();
+  if (!g) return;
+
+  const total = g.rows * g.cols;
+  lockBtns(true);
+  showProg(true);
+  setProgress(0, total);
+
+  const { jsPDF } = window.jspdf;
+  let n = 0;
+
+  if (mode === 'pdf') {
+    const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
+    for (let r = 0; r < g.rows; r++) {
+      for (let c = 0; c < g.cols; c++) {
+        if (n > 0) doc.addPage();
+        const imgData = renderTile(c, r, g).toDataURL('image/jpeg', 0.92);
+        doc.addImage(imgData, 'JPEG', 0, 0, A4W, A4H);
+        setProgress(++n, total);
+        await tick();
+      }
+    }
+    doc.save('poster-tiles.pdf');
+
+  } else {
+    const zip = new JSZip();
+    for (let r = 0; r < g.rows; r++) {
+      for (let c = 0; c < g.cols; c++) {
+        const lbl    = tileLabel(r, c);
+        const imgData = renderTile(c, r, g).toDataURL('image/jpeg', 0.92);
+        const doc    = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
+        doc.addImage(imgData, 'JPEG', 0, 0, A4W, A4H);
+        zip.file(`tile-${lbl}.pdf`, doc.output('arraybuffer'));
+        setProgress(++n, total);
+        await tick();
+      }
+    }
+    const blob = await zip.generateAsync({ type: 'blob' });
+    const a    = Object.assign(document.createElement('a'), {
+      href: URL.createObjectURL(blob), download: 'poster-tiles.zip'
+    });
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
+  document.getElementById('ptxt').textContent  = 'Done!';
+  document.getElementById('pfill').style.width = '100%';
+  setTimeout(() => {
+    showProg(false);
+    document.getElementById('pfill').style.width = '0%';
+  }, 2400);
+  lockBtns(false);
+}
+
+const tick = () => new Promise(r => setTimeout(r, 0));
+</script>
+</body>
+</html>
