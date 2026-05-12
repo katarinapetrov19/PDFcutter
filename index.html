@@ -30,15 +30,24 @@ header p{font-size:13px;color:#64748b;margin-top:6px}
 
 /* drop zone */
 .dz{
-  border:2px dashed #1e2535;border-radius:10px;padding:36px 20px;
-  text-align:center;cursor:pointer;transition:border-color .18s,background .18s;
+  border:2px dashed #1e2535;border-radius:10px;padding:28px 20px 20px;
+  text-align:center;transition:border-color .18s,background .18s;
+  pointer-events:none; /* drag events handled by wrapper */
 }
-.dz:hover,.dz.over{border-color:#3b82f6;background:rgba(59,130,246,.06)}
+.dz-wrap{cursor:pointer;border-radius:10px;}
+.dz-wrap:hover .dz,.dz-wrap.over .dz{border-color:#3b82f6;background:rgba(59,130,246,.06)}
 .dz svg{width:28px;height:28px;stroke:#3d4f6b;margin-bottom:10px}
-.dz-main{font-size:14px;color:#94a3b8}
+.dz-main{font-size:14px;color:#94a3b8;margin-bottom:10px}
 .dz-main b{color:#e2e8f0}
 .dz-sub{font-size:12px;color:#3d4f6b;margin-top:4px}
-.dz-file{font-size:13px;color:#3b82f6;margin-top:8px;font-weight:500}
+.dz-file{font-size:13px;color:#3b82f6;margin-top:10px;font-weight:500;min-height:18px}
+.dz-btn{
+  display:inline-block;margin-top:4px;
+  padding:7px 18px;background:#3b82f6;color:#fff;
+  border:none;border-radius:7px;font-size:13px;font-weight:500;
+  cursor:pointer;pointer-events:all;
+}
+.dz-btn:hover{background:#2563eb}
 
 /* settings */
 .fields{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;align-items:end}
@@ -50,12 +59,9 @@ header p{font-size:13px;color:#64748b;margin-top:6px}
   transition:border-color .14s;width:100%;
 }
 .field input:focus{border-color:#3b82f6}
-.unit-row{display:flex;gap:10px;align-items:center;margin-top:14px}
-.unit-row span{font-size:12px;color:#64748b;white-space:nowrap}
-.segs{
-  display:flex;background:#0d1117;
-  border:1px solid #1e2535;border-radius:7px;overflow:hidden;
-}
+.opt-row{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:14px}
+.opt-row span{font-size:12px;color:#64748b;white-space:nowrap}
+.segs{display:flex;background:#0d1117;border:1px solid #1e2535;border-radius:7px;overflow:hidden}
 .segs button{
   padding:7px 16px;background:none;border:none;
   color:#64748b;font-size:13px;cursor:pointer;
@@ -101,17 +107,22 @@ header p{font-size:13px;color:#64748b;margin-top:6px}
   <p>Tile a large PDF or image into A4 sheets for large-format poster printing</p>
 </header>
 
+<!-- hidden file input — lives outside everything -->
+<input type="file" id="fi" accept=".pdf,.png,.jpg,.jpeg,.tif,.tiff" style="display:none">
+
 <!-- 1 · Source -->
 <div class="card">
   <div class="lbl">Source file</div>
-  <input type="file" id="fi" accept=".pdf,.png,.jpg,.jpeg,.tif,.tiff" style="display:none">
-  <div class="dz" id="dz">
-    <svg viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242M12 12v9m-4-4 4 4 4-4"/>
-    </svg>
-    <div class="dz-main"><b>Click to upload</b> or drag &amp; drop</div>
-    <div class="dz-sub">PDF · PNG · JPG · TIFF &nbsp;—&nbsp; first page used for multi-page PDFs</div>
-    <div class="dz-file" id="fn"></div>
+  <div class="dz-wrap" id="dzwrap">
+    <div class="dz" id="dz">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242M12 12v9m-4-4 4 4 4-4"/>
+      </svg>
+      <div class="dz-main"><b>Drag &amp; drop</b> a file here, or</div>
+      <button class="dz-btn" id="pickBtn" type="button">Choose file</button>
+      <div class="dz-sub" style="margin-top:10px">PDF · PNG · JPG · TIFF</div>
+      <div class="dz-file" id="fn"></div>
+    </div>
   </div>
 </div>
 
@@ -119,20 +130,20 @@ header p{font-size:13px;color:#64748b;margin-top:6px}
 <div class="card">
   <div class="lbl">Print size</div>
   <div class="fields">
-    <div class="field"><label>Width</label><input type="number" id="pw" value="200" min="1" step="1" oninput="schedPrev()"></div>
-    <div class="field"><label>Height</label><input type="number" id="ph" value="200" min="1" step="1" oninput="schedPrev()"></div>
-    <div class="field"><label>Overlap (mm)</label><input type="number" id="ov" value="10" min="0" max="50" step="1" oninput="schedPrev()"></div>
+    <div class="field"><label>Width</label><input type="number" id="pw" value="200" min="1" step="1"></div>
+    <div class="field"><label>Height</label><input type="number" id="ph" value="200" min="1" step="1"></div>
+    <div class="field"><label>Overlap (mm)</label><input type="number" id="ov" value="10" min="0" max="50" step="1"></div>
   </div>
-  <div class="unit-row">
+  <div class="opt-row">
     <span>Unit</span>
     <div class="segs">
-      <button class="on" id="ucm" onclick="setUnit('cm')">cm</button>
-      <button id="um" onclick="setUnit('m')">m</button>
+      <button class="on" id="ucm" type="button">cm</button>
+      <button id="um" type="button">m</button>
     </div>
-    <span style="margin-left:14px">Orientation</span>
+    <span>Orientation</span>
     <div class="segs">
-      <button class="on" id="opo" onclick="setOrient('portrait')">Portrait</button>
-      <button id="ola" onclick="setOrient('landscape')">Landscape</button>
+      <button class="on" id="opo" type="button">Portrait</button>
+      <button id="ola" type="button">Landscape</button>
     </div>
   </div>
 </div>
@@ -151,8 +162,8 @@ header p{font-size:13px;color:#64748b;margin-top:6px}
 <div class="card">
   <div class="lbl">Export</div>
   <div class="btn-row">
-    <button class="btn btn-blue"  id="bpdf" disabled onclick="doExport('pdf')">Multi-page PDF</button>
-    <button class="btn btn-ghost" id="bzip" disabled onclick="doExport('zip')">ZIP of tiles</button>
+    <button class="btn btn-blue"  id="bpdf" type="button" disabled>Multi-page PDF</button>
+    <button class="btn btn-ghost" id="bzip" type="button" disabled>ZIP of tiles</button>
   </div>
   <div class="prog" id="prog">
     <div class="prog-track"><div class="prog-fill" id="pfill"></div></div>
@@ -161,100 +172,127 @@ header p{font-size:13px;color:#64748b;margin-top:6px}
 </div>
 
 <script>
-// ── constants ─────────────────────────────────────────────────────────────
-const A4SHORT = 210, A4LONG = 297;    // mm
-const RDPI  = 150;                    // render DPI for tile output
-const PXmm  = RDPI / 25.4;           // px per mm
-const MAXSRC = 7000;                  // max source canvas side in px
-
-// orientation-aware helpers
-const tileW   = () => orient === 'portrait' ? A4SHORT : A4LONG;
-const tileH   = () => orient === 'portrait' ? A4LONG  : A4SHORT;
-const tilePxW = () => Math.round(tileW() * PXmm);
-const tilePxH = () => Math.round(tileH() * PXmm);
-
 pdfjsLib.GlobalWorkerOptions.workerSrc =
   'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
-// ── state ─────────────────────────────────────────────────────────────────
+// ── constants ──────────────────────────────────────────────────────────────
+const A4S = 210, A4L = 297;  // mm short/long sides
+const RDPI = 150;
+const PXmm = RDPI / 25.4;
+const MAXSRC = 7000;
+
+// ── state ──────────────────────────────────────────────────────────────────
 let srcCanvas = null;
-let unit   = 'cm';
-let orient = 'portrait';
-let pvTimer = null;
+let unit      = 'cm';
+let orient    = 'portrait';
+let pvTimer   = null;
 
-// ── upload ────────────────────────────────────────────────────────────────
-const dz = document.getElementById('dz');
-const fi = document.getElementById('fi');
+const tw = () => orient === 'portrait' ? A4S : A4L;
+const th = () => orient === 'portrait' ? A4L : A4S;
+const tpxW = () => Math.round(tw() * PXmm);
+const tpxH = () => Math.round(th() * PXmm);
 
-dz.addEventListener('click', () => fi.click());
-dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('over') });
-dz.addEventListener('dragleave', () => dz.classList.remove('over'));
-dz.addEventListener('drop', e => {
-  e.preventDefault(); dz.classList.remove('over');
-  if (e.dataTransfer.files[0]) load(e.dataTransfer.files[0]);
+// ── DOM refs ───────────────────────────────────────────────────────────────
+const fi      = document.getElementById('fi');
+const dzwrap  = document.getElementById('dzwrap');
+const fnEl    = document.getElementById('fn');
+const pvempEl = document.getElementById('pvemp');
+const pvcEl   = document.getElementById('pvc');
+const tinfoEl = document.getElementById('tinfo');
+const bpdf    = document.getElementById('bpdf');
+const bzip    = document.getElementById('bzip');
+const progEl  = document.getElementById('prog');
+const pfill   = document.getElementById('pfill');
+const ptxt    = document.getElementById('ptxt');
+
+// ── file picker button ─────────────────────────────────────────────────────
+document.getElementById('pickBtn').addEventListener('click', function(e) {
+  e.stopPropagation();
+  fi.value = '';       // reset so same file can be re-selected
+  fi.click();
 });
-fi.addEventListener('change', e => { if (e.target.files[0]) load(e.target.files[0]) });
 
-async function load(file) {
-  const fn = document.getElementById('fn');
-  fn.textContent = '⏳ Loading ' + file.name + '…';
+// ── drag and drop on the wrapper ───────────────────────────────────────────
+dzwrap.addEventListener('dragover',  e => { e.preventDefault(); dzwrap.classList.add('over') });
+dzwrap.addEventListener('dragleave', e => { if (!dzwrap.contains(e.relatedTarget)) dzwrap.classList.remove('over') });
+dzwrap.addEventListener('drop', e => {
+  e.preventDefault();
+  dzwrap.classList.remove('over');
+  const file = e.dataTransfer.files[0];
+  if (file) handleFile(file);
+});
+
+// ── file input change ──────────────────────────────────────────────────────
+fi.addEventListener('change', function() {
+  if (this.files && this.files[0]) handleFile(this.files[0]);
+});
+
+// ── load file ─────────────────────────────────────────────────────────────
+async function handleFile(file) {
+  fnEl.style.color = '#3b82f6';
+  fnEl.textContent = '⏳ Loading ' + file.name + '…';
   try {
-    const name   = file.name.toLowerCase();
-    const isPDF  = file.type === 'application/pdf' || name.endsWith('.pdf');
-    const isTIFF = name.endsWith('.tif') || name.endsWith('.tiff');
-    srcCanvas = isPDF ? await fromPDF(file) : isTIFF ? await fromTIFF(file) : await fromImage(file);
-    fn.textContent = '✓ ' + file.name;
-    drawPreview();
+    const n = file.name.toLowerCase();
+    if (n.endsWith('.pdf') || file.type === 'application/pdf') {
+      srcCanvas = await loadPDF(file);
+    } else if (n.endsWith('.tif') || n.endsWith('.tiff')) {
+      srcCanvas = await loadTIFF(file);
+    } else {
+      srcCanvas = await loadImage(file);
+    }
+    fnEl.textContent = '✓ ' + file.name;
+    refreshPreview();
   } catch(err) {
-    fn.style.color = '#f87171';
-    fn.textContent = '✗ Failed to load: ' + err.message;
+    fnEl.style.color = '#f87171';
+    fnEl.textContent = '✗ ' + err.message;
   }
 }
 
-async function fromImage(file) {
-  return new Promise(res => {
+async function loadImage(file) {
+  return new Promise((resolve, reject) => {
     const img = new Image();
+    const url = URL.createObjectURL(file);
     img.onload = () => {
+      URL.revokeObjectURL(url);
       let w = img.naturalWidth, h = img.naturalHeight;
       const s = Math.min(1, MAXSRC / Math.max(w, h));
       w = Math.round(w * s); h = Math.round(h * s);
-      const c = doc2canvas(w, h);
+      const c = makeCanvas(w, h);
       c.getContext('2d').drawImage(img, 0, 0, w, h);
-      URL.revokeObjectURL(img.src);
-      res(c);
+      resolve(c);
     };
-    img.src = URL.createObjectURL(file);
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Image failed to load')) };
+    img.src = url;
   });
 }
 
-async function fromTIFF(file) {
+async function loadTIFF(file) {
   const buf  = await file.arrayBuffer();
   const ifds = UTIF.decode(buf);
+  if (!ifds.length) throw new Error('No pages found in TIFF');
   UTIF.decodeImage(buf, ifds[0]);
   const ifd  = ifds[0];
-  let w = ifd.width, h = ifd.height;
+  const w = ifd.width, h = ifd.height;
   const rgba = UTIF.toRGBA8(ifd);
-  const s  = Math.min(1, MAXSRC / Math.max(w, h));
-  const dw = Math.round(w * s), dh = Math.round(h * s);
-  const c  = doc2canvas(dw, dh);
-  const ctx = c.getContext('2d');
-  // draw full-res into a temp canvas then scale down
-  const tmp = doc2canvas(w, h);
-  const id  = tmp.getContext('2d').createImageData(w, h);
+  const tmp  = makeCanvas(w, h);
+  const id   = tmp.getContext('2d').createImageData(w, h);
   id.data.set(rgba);
   tmp.getContext('2d').putImageData(id, 0, 0);
-  ctx.drawImage(tmp, 0, 0, dw, dh);
+  const s = Math.min(1, MAXSRC / Math.max(w, h));
+  const dw = Math.round(w * s), dh = Math.round(h * s);
+  const c = makeCanvas(dw, dh);
+  c.getContext('2d').drawImage(tmp, 0, 0, dw, dh);
   return c;
 }
 
-async function fromPDF(file) {
+async function loadPDF(file) {
   const buf  = await file.arrayBuffer();
   const pdf  = await pdfjsLib.getDocument({ data: buf }).promise;
   const page = await pdf.getPage(1);
   const vp0  = page.getViewport({ scale: 1 });
   const sc   = Math.min(3, MAXSRC / Math.max(vp0.width, vp0.height));
   const vp   = page.getViewport({ scale: sc });
-  const c    = doc2canvas(Math.round(vp.width), Math.round(vp.height));
+  const c    = makeCanvas(Math.round(vp.width), Math.round(vp.height));
   const ctx  = c.getContext('2d');
   ctx.fillStyle = '#fff';
   ctx.fillRect(0, 0, c.width, c.height);
@@ -262,169 +300,163 @@ async function fromPDF(file) {
   return c;
 }
 
-function doc2canvas(w, h) {
+function makeCanvas(w, h) {
   const c = document.createElement('canvas');
   c.width = w; c.height = h;
   return c;
 }
 
-// ── grid calc ─────────────────────────────────────────────────────────────
-const getW   = () => +document.getElementById('pw').value * (unit === 'm' ? 1000 : 10);
-const getH   = () => +document.getElementById('ph').value * (unit === 'm' ? 1000 : 10);
-const getOvl = () => +document.getElementById('ov').value;
+// ── settings controls ──────────────────────────────────────────────────────
+document.getElementById('pw').addEventListener('input', schedPreview);
+document.getElementById('ph').addEventListener('input', schedPreview);
+document.getElementById('ov').addEventListener('input', schedPreview);
 
-function calcGrid() {
-  const w = getW(), h = getH(), o = getOvl();
-  if (!w || !h) return null;
-  const tw = tileW(), th = tileH();
-  const sx = tw - o, sy = th - o;
-  if (sx <= 0 || sy <= 0) return null;
-  return { cols: Math.ceil(w / sx), rows: Math.ceil(h / sy), sx, sy, w, h, tw, th };
-}
+document.getElementById('ucm').addEventListener('click', () => setUnit('cm'));
+document.getElementById('um').addEventListener('click',  () => setUnit('m'));
+document.getElementById('opo').addEventListener('click', () => setOrient('portrait'));
+document.getElementById('ola').addEventListener('click', () => setOrient('landscape'));
 
 function setUnit(u) {
   unit = u;
   document.getElementById('ucm').classList.toggle('on', u === 'cm');
-  document.getElementById('um').classList.toggle('on', u === 'm');
-  schedPrev();
+  document.getElementById('um').classList.toggle('on',  u === 'm');
+  schedPreview();
 }
 
 function setOrient(o) {
   orient = o;
   document.getElementById('opo').classList.toggle('on', o === 'portrait');
   document.getElementById('ola').classList.toggle('on', o === 'landscape');
-  schedPrev();
+  schedPreview();
 }
 
-// ── preview ───────────────────────────────────────────────────────────────
-function schedPrev() { clearTimeout(pvTimer); pvTimer = setTimeout(drawPreview, 220) }
+// ── grid calc ──────────────────────────────────────────────────────────────
+function getW()   { return +document.getElementById('pw').value * (unit === 'm' ? 1000 : 10) }
+function getH()   { return +document.getElementById('ph').value * (unit === 'm' ? 1000 : 10) }
+function getOvl() { return +document.getElementById('ov').value }
 
-function drawPreview() {
+function calcGrid() {
+  const w = getW(), h = getH(), o = getOvl();
+  if (!w || !h) return null;
+  const tilew = tw(), tileh = th();
+  const sx = tilew - o, sy = tileh - o;
+  if (sx <= 0 || sy <= 0) return null;
+  return {
+    cols: Math.ceil(w / sx), rows: Math.ceil(h / sy),
+    sx, sy, w, h, tilew, tileh
+  };
+}
+
+// ── preview ────────────────────────────────────────────────────────────────
+function schedPreview() { clearTimeout(pvTimer); pvTimer = setTimeout(refreshPreview, 180) }
+
+function refreshPreview() {
   if (!srcCanvas) return;
   const g = calcGrid();
   if (!g) return;
 
-  const cv  = document.getElementById('pvc');
   const MAX = 560;
   const ar  = srcCanvas.width / srcCanvas.height;
-  let pw, ph;
-  if (ar >= 1) { pw = MAX; ph = Math.round(MAX / ar) }
-  else         { ph = MAX; pw = Math.round(MAX * ar) }
-  cv.width = pw; cv.height = ph;
+  const pw  = ar >= 1 ? MAX : Math.round(MAX * ar);
+  const ph  = ar >= 1 ? Math.round(MAX / ar) : MAX;
 
-  const ctx = cv.getContext('2d');
+  pvcEl.width  = pw;
+  pvcEl.height = ph;
+  const ctx = pvcEl.getContext('2d');
   ctx.drawImage(srcCanvas, 0, 0, pw, ph);
 
-  // tile grid overlay
-  const stpX = g.sx / g.w * pw;
-  const stpY = g.sy / g.h * ph;
-  const tpw  = g.tw / g.w * pw;
-  const tph  = g.th / g.h * ph;
+  const stpX = g.sx     / g.w * pw;
+  const stpY = g.sy     / g.h * ph;
+  const tpw  = g.tilew  / g.w * pw;
+  const tph  = g.tileh  / g.h * ph;
   const fs   = Math.max(7, Math.min(13, Math.floor(Math.min(stpX, stpY) / 5)));
 
-  ctx.font = `bold ${fs}px -apple-system,sans-serif`;
+  ctx.font         = `bold ${fs}px -apple-system,sans-serif`;
   ctx.textBaseline = 'top';
 
   for (let r = 0; r < g.rows; r++) {
     for (let c = 0; c < g.cols; c++) {
-      const x = c * stpX, y = r * stpY;
+      const x  = c * stpX, y = r * stpY;
       const bw = Math.min(tpw, pw - x), bh = Math.min(tph, ph - y);
-
-      ctx.fillStyle = 'rgba(59,130,246,.1)';
+      ctx.fillStyle   = 'rgba(59,130,246,.1)';
       ctx.fillRect(x, y, bw, bh);
       ctx.strokeStyle = 'rgba(59,130,246,.75)';
-      ctx.lineWidth = 1;
+      ctx.lineWidth   = 1;
       ctx.strokeRect(x + .5, y + .5, bw - 1, bh - 1);
-
-      ctx.fillStyle = 'rgba(59,130,246,.9)';
+      ctx.fillStyle   = 'rgba(59,130,246,.9)';
       ctx.fillText(tileLabel(r, c), x + 3, y + 3);
     }
   }
 
-  document.getElementById('pvemp').style.display = 'none';
-  cv.style.display = 'block';
+  pvempEl.style.display = 'none';
+  pvcEl.style.display   = 'block';
 
-  const n = g.cols * g.rows;
+  const n    = g.cols * g.rows;
   const warn = n > 200;
-  document.getElementById('tinfo').innerHTML =
+  tinfoEl.innerHTML =
     `<b class="${warn ? 'tile-warn' : ''}">${n} tile${n !== 1 ? 's' : ''}</b>`
     + ` &nbsp;—&nbsp; ${g.cols} col${g.cols !== 1 ? 's' : ''} × ${g.rows} row${g.rows !== 1 ? 's' : ''}`
     + ` &nbsp;·&nbsp; A4 ${orient}`
-    + (warn ? ` &nbsp;<span class="tile-warn">· large export, may take a while</span>` : '');
+    + (warn ? ` <span class="tile-warn">· large export, may take a while</span>` : '');
 
-  document.getElementById('bpdf').disabled = false;
-  document.getElementById('bzip').disabled = false;
+  bpdf.disabled = false;
+  bzip.disabled = false;
 }
 
-// ── label helper ──────────────────────────────────────────────────────────
 function tileLabel(row, col) {
-  const r = row < 26 ? String.fromCharCode(65 + row) : `R${row + 1}`;
-  return `${r}${col + 1}`;
+  const r = row < 26 ? String.fromCharCode(65 + row) : 'R' + (row + 1);
+  return r + (col + 1);
 }
 
-// ── render one tile canvas ─────────────────────────────────────────────────
+// ── render one tile ────────────────────────────────────────────────────────
 function renderTile(col, row, g) {
-  const tw = tilePxW(), th = tilePxH();
-  const c   = doc2canvas(tw, th);
+  const pw  = tpxW(), ph = tpxH();
+  const c   = makeCanvas(pw, ph);
   const ctx = c.getContext('2d');
 
   ctx.fillStyle = '#fff';
-  ctx.fillRect(0, 0, tw, th);
+  ctx.fillRect(0, 0, pw, ph);
 
-  // sample from source
-  const scaleX = srcCanvas.width  / g.w;
-  const scaleY = srcCanvas.height / g.h;
+  const sx = srcCanvas.width  / g.w;
+  const sy = srcCanvas.height / g.h;
   ctx.drawImage(
     srcCanvas,
-    col * g.sx * scaleX,  row * g.sy * scaleY,
-    g.tw * scaleX,        g.th * scaleY,
-    0, 0, tw, th
+    col * g.sx * sx, row * g.sy * sy,
+    g.tilew * sx,    g.tileh * sy,
+    0, 0, pw, ph
   );
 
-  // corner label badge
-  const lbl = tileLabel(row, col);
-  const fs = 20, pad = 8;
-  ctx.font = `bold ${fs}px -apple-system,Helvetica,sans-serif`;
+  // label badge
+  const lbl  = tileLabel(row, col);
+  const fs   = 20, pad = 8;
+  ctx.font         = `bold ${fs}px -apple-system,Helvetica,sans-serif`;
   ctx.textBaseline = 'top';
   const lblW = ctx.measureText(lbl).width;
-  const bw = lblW + pad * 2, bh = fs + pad * 2 + 2;
-
+  const badgeW = lblW + pad * 2, badgeH = fs + pad * 2 + 2;
   ctx.fillStyle = 'rgba(0,0,0,.42)';
   ctx.beginPath();
-  if (ctx.roundRect) {
-    ctx.roundRect(6, 6, bw, bh, 5);
-  } else {
-    ctx.rect(6, 6, bw, bh);
-  }
+  ctx.roundRect ? ctx.roundRect(6, 6, badgeW, badgeH, 5) : ctx.rect(6, 6, badgeW, badgeH);
   ctx.fill();
-
   ctx.fillStyle = '#fff';
   ctx.fillText(lbl, 6 + pad, 6 + pad);
 
   return c;
 }
 
-// ── progress helpers ───────────────────────────────────────────────────────
-function setProgress(n, total) {
-  document.getElementById('pfill').style.width = Math.round(n / total * 100) + '%';
-  document.getElementById('ptxt').textContent  = `Processing tile ${n} of ${total}…`;
-}
-function showProg(v) { document.getElementById('prog').classList.toggle('show', v) }
-function lockBtns(v) {
-  document.getElementById('bpdf').disabled = v;
-  document.getElementById('bzip').disabled = v;
-}
+// ── export ─────────────────────────────────────────────────────────────────
+bpdf.addEventListener('click', () => doExport('pdf'));
+bzip.addEventListener('click', () => doExport('zip'));
 
-// ── export ────────────────────────────────────────────────────────────────
 async function doExport(mode) {
   if (!srcCanvas) return;
   const g = calcGrid();
   if (!g) return;
 
   const total = g.rows * g.cols;
-  lockBtns(true);
-  showProg(true);
-  setProgress(0, total);
+  bpdf.disabled = true;
+  bzip.disabled = true;
+  progEl.classList.add('show');
+  updateProgress(0, total);
 
   const { jsPDF } = window.jspdf;
   let n = 0;
@@ -434,42 +466,45 @@ async function doExport(mode) {
     for (let r = 0; r < g.rows; r++) {
       for (let c = 0; c < g.cols; c++) {
         if (n > 0) doc.addPage();
-        const imgData = renderTile(c, r, g).toDataURL('image/jpeg', 0.92);
-        doc.addImage(imgData, 'JPEG', 0, 0, g.tw, g.th);
-        setProgress(++n, total);
+        doc.addImage(renderTile(c, r, g).toDataURL('image/jpeg', .92), 'JPEG', 0, 0, g.tilew, g.tileh);
+        updateProgress(++n, total);
         await tick();
       }
     }
     doc.save('poster-tiles.pdf');
-
   } else {
     const zip = new JSZip();
     for (let r = 0; r < g.rows; r++) {
       for (let c = 0; c < g.cols; c++) {
-        const lbl    = tileLabel(r, c);
-        const imgData = renderTile(c, r, g).toDataURL('image/jpeg', 0.92);
-        const doc    = new jsPDF({ unit: 'mm', format: 'a4', orientation: orient });
-        doc.addImage(imgData, 'JPEG', 0, 0, g.tw, g.th);
-        zip.file(`tile-${lbl}.pdf`, doc.output('arraybuffer'));
-        setProgress(++n, total);
+        const lbl = tileLabel(r, c);
+        const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: orient });
+        doc.addImage(renderTile(c, r, g).toDataURL('image/jpeg', .92), 'JPEG', 0, 0, g.tilew, g.tileh);
+        zip.file('tile-' + lbl + '.pdf', doc.output('arraybuffer'));
+        updateProgress(++n, total);
         await tick();
       }
     }
     const blob = await zip.generateAsync({ type: 'blob' });
-    const a    = Object.assign(document.createElement('a'), {
-      href: URL.createObjectURL(blob), download: 'poster-tiles.zip'
-    });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'poster-tiles.zip';
     a.click();
     URL.revokeObjectURL(a.href);
   }
 
-  document.getElementById('ptxt').textContent  = 'Done!';
-  document.getElementById('pfill').style.width = '100%';
+  pfill.style.width = '100%';
+  ptxt.textContent  = 'Done!';
   setTimeout(() => {
-    showProg(false);
-    document.getElementById('pfill').style.width = '0%';
-  }, 2400);
-  lockBtns(false);
+    progEl.classList.remove('show');
+    pfill.style.width = '0%';
+    bpdf.disabled = false;
+    bzip.disabled = false;
+  }, 2000);
+}
+
+function updateProgress(n, total) {
+  pfill.style.width = Math.round(n / total * 100) + '%';
+  ptxt.textContent  = 'Tile ' + n + ' of ' + total + '…';
 }
 
 const tick = () => new Promise(r => setTimeout(r, 0));
