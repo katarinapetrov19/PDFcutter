@@ -19,6 +19,24 @@ header{text-align:center;margin-bottom:36px}
 header h1{font-size:22px;font-weight:600;letter-spacing:-.02em}
 header p{font-size:13px;color:#64748b;margin-top:6px}
 
+/* paper size select */
+.ps-row{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:14px}
+.ps-row span{font-size:12px;color:#64748b;white-space:nowrap}
+.ps-select{
+  background:#0d1117;border:1px solid #1e2535;border-radius:7px;
+  color:#e2e8f0;font-size:13px;padding:8px 10px;outline:none;cursor:pointer;
+  transition:border-color .14s;
+}
+.ps-select:focus{border-color:#3b82f6}
+.custom-fields{display:flex;gap:8px;align-items:center}
+.custom-fields input{
+  width:72px;background:#0d1117;border:1px solid #1e2535;border-radius:7px;
+  color:#e2e8f0;font-size:13px;padding:8px 10px;outline:none;
+  transition:border-color .14s;
+}
+.custom-fields input:focus{border-color:#3b82f6}
+.custom-fields span{font-size:12px;color:#3d4f6b}
+
 .card{
   width:100%;max-width:620px;background:#161b27;
   border:1px solid #1e2535;border-radius:14px;padding:24px;margin-bottom:14px;
@@ -104,7 +122,7 @@ header p{font-size:13px;color:#64748b;margin-top:6px}
 
 <header>
   <h1>Poster Tile Printer</h1>
-  <p>Tile a large PDF or image into A4 sheets for large-format poster printing</p>
+  <p>Tile a large PDF or image into sheets for large-format poster printing</p>
 </header>
 
 <!-- hidden file input — lives outside everything -->
@@ -129,6 +147,28 @@ header p{font-size:13px;color:#64748b;margin-top:6px}
 <!-- 2 · Dimensions -->
 <div class="card">
   <div class="lbl">Print size</div>
+
+  <!-- paper size picker -->
+  <div class="ps-row">
+    <span>Tile size</span>
+    <select id="psize" class="ps-select">
+      <option value="A4">A4  — 210 × 297 mm</option>
+      <option value="A3">A3  — 297 × 420 mm</option>
+      <option value="A2">A2  — 420 × 594 mm</option>
+      <option value="A1">A1  — 594 × 841 mm</option>
+      <option value="letter">Letter  — 216 × 279 mm</option>
+      <option value="legal">Legal  — 216 × 356 mm</option>
+      <option value="tabloid">Tabloid  — 279 × 432 mm</option>
+      <option value="custom">Custom…</option>
+    </select>
+    <div class="custom-fields" id="customFields" style="display:none">
+      <input type="number" id="csw" placeholder="W" min="50" max="2000" value="210">
+      <span>×</span>
+      <input type="number" id="csh" placeholder="H" min="50" max="2000" value="297">
+      <span>mm</span>
+    </div>
+  </div>
+
   <div class="fields">
     <div class="field"><label>Width</label><input type="number" id="pw" value="200" min="1" step="1"></div>
     <div class="field"><label>Height</label><input type="number" id="ph" value="200" min="1" step="1"></div>
@@ -176,21 +216,42 @@ pdfjsLib.GlobalWorkerOptions.workerSrc =
   'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
 // ── constants ──────────────────────────────────────────────────────────────
-const A4S = 210, A4L = 297;  // mm short/long sides
-const RDPI = 150;
-const PXmm = RDPI / 25.4;
+const RDPI   = 150;
+const PXmm   = RDPI / 25.4;
 const MAXSRC = 7000;
 
-// ── state ──────────────────────────────────────────────────────────────────
-let srcCanvas = null;
-let unit      = 'cm';
-let orient    = 'portrait';
-let pvTimer   = null;
+// paper size catalogue [short, long] in mm
+const PAPER = {
+  A4:      [210, 297],
+  A3:      [297, 420],
+  A2:      [420, 594],
+  A1:      [594, 841],
+  letter:  [216, 279],
+  legal:   [216, 356],
+  tabloid: [279, 432],
+};
 
-const tw = () => orient === 'portrait' ? A4S : A4L;
-const th = () => orient === 'portrait' ? A4L : A4S;
+// ── state ──────────────────────────────────────────────────────────────────
+let srcCanvas  = null;
+let unit       = 'cm';
+let orient     = 'portrait';
+let paperKey   = 'A4';       // key into PAPER or 'custom'
+let customW    = 210;        // mm, used when paperKey === 'custom'
+let customH    = 297;
+let pvTimer    = null;
+
+function paperShort() { return paperKey === 'custom' ? Math.min(customW, customH) : PAPER[paperKey][0] }
+function paperLong()  { return paperKey === 'custom' ? Math.max(customW, customH) : PAPER[paperKey][1] }
+const tw   = () => orient === 'portrait' ? paperShort() : paperLong();
+const th   = () => orient === 'portrait' ? paperLong()  : paperShort();
 const tpxW = () => Math.round(tw() * PXmm);
 const tpxH = () => Math.round(th() * PXmm);
+
+// jsPDF format value
+function jsPDFFormat() {
+  if (paperKey !== 'custom') return paperKey === 'tabloid' ? 'tabloid' : paperKey.toLowerCase();
+  return [tw(), th()]; // custom: pass [w, h] in mm
+}
 
 // ── DOM refs ───────────────────────────────────────────────────────────────
 const fi      = document.getElementById('fi');
@@ -316,6 +377,20 @@ document.getElementById('um').addEventListener('click',  () => setUnit('m'));
 document.getElementById('opo').addEventListener('click', () => setOrient('portrait'));
 document.getElementById('ola').addEventListener('click', () => setOrient('landscape'));
 
+document.getElementById('psize').addEventListener('change', function() {
+  paperKey = this.value;
+  document.getElementById('customFields').style.display = paperKey === 'custom' ? 'flex' : 'none';
+  schedPreview();
+});
+document.getElementById('csw').addEventListener('input', function() {
+  customW = Math.max(1, +this.value || 210);
+  schedPreview();
+});
+document.getElementById('csh').addEventListener('input', function() {
+  customH = Math.max(1, +this.value || 297);
+  schedPreview();
+});
+
 function setUnit(u) {
   unit = u;
   document.getElementById('ucm').classList.toggle('on', u === 'cm');
@@ -396,7 +471,7 @@ function refreshPreview() {
   tinfoEl.innerHTML =
     `<b class="${warn ? 'tile-warn' : ''}">${n} tile${n !== 1 ? 's' : ''}</b>`
     + ` &nbsp;—&nbsp; ${g.cols} col${g.cols !== 1 ? 's' : ''} × ${g.rows} row${g.rows !== 1 ? 's' : ''}`
-    + ` &nbsp;·&nbsp; A4 ${orient}`
+    + ` &nbsp;·&nbsp; ${paperKey === 'custom' ? customW+'×'+customH+'mm' : paperKey.toUpperCase()} ${orient}`
     + (warn ? ` <span class="tile-warn">· large export, may take a while</span>` : '');
 
   bpdf.disabled = false;
@@ -462,7 +537,7 @@ async function doExport(mode) {
   let n = 0;
 
   if (mode === 'pdf') {
-    const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: orient });
+    const doc = new jsPDF({ unit: 'mm', format: jsPDFFormat(), orientation: orient });
     for (let r = 0; r < g.rows; r++) {
       for (let c = 0; c < g.cols; c++) {
         if (n > 0) doc.addPage();
@@ -477,7 +552,7 @@ async function doExport(mode) {
     for (let r = 0; r < g.rows; r++) {
       for (let c = 0; c < g.cols; c++) {
         const lbl = tileLabel(r, c);
-        const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: orient });
+        const doc = new jsPDF({ unit: 'mm', format: jsPDFFormat(), orientation: orient });
         doc.addImage(renderTile(c, r, g).toDataURL('image/jpeg', .92), 'JPEG', 0, 0, g.tilew, g.tileh);
         zip.file('tile-' + lbl + '.pdf', doc.output('arraybuffer'));
         updateProgress(++n, total);
