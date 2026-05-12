@@ -128,6 +128,11 @@ header p{font-size:13px;color:#64748b;margin-top:6px}
       <button class="on" id="ucm" onclick="setUnit('cm')">cm</button>
       <button id="um" onclick="setUnit('m')">m</button>
     </div>
+    <span style="margin-left:14px">Orientation</span>
+    <div class="segs">
+      <button class="on" id="opo" onclick="setOrient('portrait')">Portrait</button>
+      <button id="ola" onclick="setOrient('landscape')">Landscape</button>
+    </div>
   </div>
 </div>
 
@@ -156,19 +161,24 @@ header p{font-size:13px;color:#64748b;margin-top:6px}
 
 <script>
 // ── constants ─────────────────────────────────────────────────────────────
-const A4W = 210, A4H = 297;           // mm
-const RDPI = 150;                     // render DPI for tile output
-const PXmm = RDPI / 25.4;            // px per mm
-const TW   = Math.round(A4W * PXmm); // ≈1240 px
-const TH   = Math.round(A4H * PXmm); // ≈1754 px
+const A4SHORT = 210, A4LONG = 297;    // mm
+const RDPI  = 150;                    // render DPI for tile output
+const PXmm  = RDPI / 25.4;           // px per mm
 const MAXSRC = 7000;                  // max source canvas side in px
+
+// orientation-aware helpers
+const tileW   = () => orient === 'portrait' ? A4SHORT : A4LONG;
+const tileH   = () => orient === 'portrait' ? A4LONG  : A4SHORT;
+const tilePxW = () => Math.round(tileW() * PXmm);
+const tilePxH = () => Math.round(tileH() * PXmm);
 
 pdfjsLib.GlobalWorkerOptions.workerSrc =
   'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
 // ── state ─────────────────────────────────────────────────────────────────
 let srcCanvas = null;
-let unit = 'cm';
+let unit   = 'cm';
+let orient = 'portrait';
 let pvTimer = null;
 
 // ── upload ────────────────────────────────────────────────────────────────
@@ -236,15 +246,23 @@ const getOvl = () => +document.getElementById('ov').value;
 function calcGrid() {
   const w = getW(), h = getH(), o = getOvl();
   if (!w || !h) return null;
-  const sx = A4W - o, sy = A4H - o;
+  const tw = tileW(), th = tileH();
+  const sx = tw - o, sy = th - o;
   if (sx <= 0 || sy <= 0) return null;
-  return { cols: Math.ceil(w / sx), rows: Math.ceil(h / sy), sx, sy, w, h };
+  return { cols: Math.ceil(w / sx), rows: Math.ceil(h / sy), sx, sy, w, h, tw, th };
 }
 
 function setUnit(u) {
   unit = u;
   document.getElementById('ucm').classList.toggle('on', u === 'cm');
   document.getElementById('um').classList.toggle('on', u === 'm');
+  schedPrev();
+}
+
+function setOrient(o) {
+  orient = o;
+  document.getElementById('opo').classList.toggle('on', o === 'portrait');
+  document.getElementById('ola').classList.toggle('on', o === 'landscape');
   schedPrev();
 }
 
@@ -270,8 +288,8 @@ function drawPreview() {
   // tile grid overlay
   const stpX = g.sx / g.w * pw;
   const stpY = g.sy / g.h * ph;
-  const tpw  = A4W / g.w * pw;
-  const tph  = A4H / g.h * ph;
+  const tpw  = g.tw / g.w * pw;
+  const tph  = g.th / g.h * ph;
   const fs   = Math.max(7, Math.min(13, Math.floor(Math.min(stpX, stpY) / 5)));
 
   ctx.font = `bold ${fs}px -apple-system,sans-serif`;
@@ -301,7 +319,7 @@ function drawPreview() {
   document.getElementById('tinfo').innerHTML =
     `<b class="${warn ? 'tile-warn' : ''}">${n} tile${n !== 1 ? 's' : ''}</b>`
     + ` &nbsp;—&nbsp; ${g.cols} col${g.cols !== 1 ? 's' : ''} × ${g.rows} row${g.rows !== 1 ? 's' : ''}`
-    + ` &nbsp;·&nbsp; A4 portrait`
+    + ` &nbsp;·&nbsp; A4 ${orient}`
     + (warn ? ` &nbsp;<span class="tile-warn">· large export, may take a while</span>` : '');
 
   document.getElementById('bpdf').disabled = false;
@@ -316,11 +334,12 @@ function tileLabel(row, col) {
 
 // ── render one tile canvas ─────────────────────────────────────────────────
 function renderTile(col, row, g) {
-  const c   = doc2canvas(TW, TH);
+  const tw = tilePxW(), th = tilePxH();
+  const c   = doc2canvas(tw, th);
   const ctx = c.getContext('2d');
 
   ctx.fillStyle = '#fff';
-  ctx.fillRect(0, 0, TW, TH);
+  ctx.fillRect(0, 0, tw, th);
 
   // sample from source
   const scaleX = srcCanvas.width  / g.w;
@@ -328,8 +347,8 @@ function renderTile(col, row, g) {
   ctx.drawImage(
     srcCanvas,
     col * g.sx * scaleX,  row * g.sy * scaleY,
-    A4W * scaleX,         A4H * scaleY,
-    0, 0, TW, TH
+    g.tw * scaleX,        g.th * scaleY,
+    0, 0, tw, th
   );
 
   // corner label badge
@@ -381,12 +400,12 @@ async function doExport(mode) {
   let n = 0;
 
   if (mode === 'pdf') {
-    const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
+    const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: orient });
     for (let r = 0; r < g.rows; r++) {
       for (let c = 0; c < g.cols; c++) {
         if (n > 0) doc.addPage();
         const imgData = renderTile(c, r, g).toDataURL('image/jpeg', 0.92);
-        doc.addImage(imgData, 'JPEG', 0, 0, A4W, A4H);
+        doc.addImage(imgData, 'JPEG', 0, 0, g.tw, g.th);
         setProgress(++n, total);
         await tick();
       }
@@ -399,8 +418,8 @@ async function doExport(mode) {
       for (let c = 0; c < g.cols; c++) {
         const lbl    = tileLabel(r, c);
         const imgData = renderTile(c, r, g).toDataURL('image/jpeg', 0.92);
-        const doc    = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
-        doc.addImage(imgData, 'JPEG', 0, 0, A4W, A4H);
+        const doc    = new jsPDF({ unit: 'mm', format: 'a4', orientation: orient });
+        doc.addImage(imgData, 'JPEG', 0, 0, g.tw, g.th);
         zip.file(`tile-${lbl}.pdf`, doc.output('arraybuffer'));
         setProgress(++n, total);
         await tick();
